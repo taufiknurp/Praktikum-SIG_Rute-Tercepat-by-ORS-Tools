@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoPasarSambikenceng_1.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoPasarKertosono_2.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoPasarKedungringin_3.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoPabrikGulaLestari_4.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoRSUDKertosono_6.js"></script>
+        <script src="data/Fastest_StasiunKertosonotoPasarRakyatLengkong_7.js"></script>
+        <script src="data/Lokasi_8.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: 'rgba(255, 255, 0, 1.00)',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: 'rgba(255, 255, 0, 1.00)',
+                fillOpacity: 1
+              });
+            }
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        }).fitBounds([[-7.725239261424813,111.8829063885094],[-7.389945615107492,112.44214803326707]]);
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    var img = popup._contentNode.querySelector('td img');
+                    if (img) {
+                        // If already loaded (cache), update immediately
+                        if (img.complete && img.naturalHeight > 0) {
+                            popup.update();
+                        } else {
+                            img.addEventListener('load', function() {
+                                popup.update();
+                            });
+                            img.addEventListener('error', function() {
+                                popup.update();
+                            });
+                        }
+                    }
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+        }
+        map.createPane('pane_GoogleEarth_0');
+        map.getPane('pane_GoogleEarth_0').style.zIndex = 400;
+        var layer_GoogleEarth_0 = L.tileLayer('http://www.google.cn/maps/vt?lyrs=s@189 &gl=cn&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleEarth_0',
+            opacity: 1.0,
+            attribution: '',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 40
+        });
+        layer_GoogleEarth_0;
+        map.addLayer(layer_GoogleEarth_0);
+        function pop_Fastest_StasiunKertosonotoPasarSambikenceng_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoPasarSambikenceng_1_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoPasarSambikenceng_1',
+                opacity: 1,
+                color: 'rgba(190,207,80,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoPasarSambikenceng_1');
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarSambikenceng_1').style.zIndex = 401;
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarSambikenceng_1').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoPasarSambikenceng_1 = new L.geoJson(json_Fastest_StasiunKertosonotoPasarSambikenceng_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoPasarSambikenceng_1',
+            layerName: 'layer_Fastest_StasiunKertosonotoPasarSambikenceng_1',
+            pane: 'pane_Fastest_StasiunKertosonotoPasarSambikenceng_1',
+            onEachFeature: pop_Fastest_StasiunKertosonotoPasarSambikenceng_1,
+            style: style_Fastest_StasiunKertosonotoPasarSambikenceng_1_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoPasarSambikenceng_1);
+        map.addLayer(layer_Fastest_StasiunKertosonotoPasarSambikenceng_1);
+        function pop_Fastest_StasiunKertosonotoPasarKertosono_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoPasarKertosono_2_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoPasarKertosono_2',
+                opacity: 1,
+                color: 'rgba(125,139,143,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoPasarKertosono_2');
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarKertosono_2').style.zIndex = 402;
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarKertosono_2').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoPasarKertosono_2 = new L.geoJson(json_Fastest_StasiunKertosonotoPasarKertosono_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoPasarKertosono_2',
+            layerName: 'layer_Fastest_StasiunKertosonotoPasarKertosono_2',
+            pane: 'pane_Fastest_StasiunKertosonotoPasarKertosono_2',
+            onEachFeature: pop_Fastest_StasiunKertosonotoPasarKertosono_2,
+            style: style_Fastest_StasiunKertosonotoPasarKertosono_2_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoPasarKertosono_2);
+        map.addLayer(layer_Fastest_StasiunKertosonotoPasarKertosono_2);
+        function pop_Fastest_StasiunKertosonotoPasarKedungringin_3(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoPasarKedungringin_3_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoPasarKedungringin_3',
+                opacity: 1,
+                color: 'rgba(213,180,60,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoPasarKedungringin_3');
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarKedungringin_3').style.zIndex = 403;
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarKedungringin_3').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoPasarKedungringin_3 = new L.geoJson(json_Fastest_StasiunKertosonotoPasarKedungringin_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoPasarKedungringin_3',
+            layerName: 'layer_Fastest_StasiunKertosonotoPasarKedungringin_3',
+            pane: 'pane_Fastest_StasiunKertosonotoPasarKedungringin_3',
+            onEachFeature: pop_Fastest_StasiunKertosonotoPasarKedungringin_3,
+            style: style_Fastest_StasiunKertosonotoPasarKedungringin_3_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoPasarKedungringin_3);
+        map.addLayer(layer_Fastest_StasiunKertosonotoPasarKedungringin_3);
+        function pop_Fastest_StasiunKertosonotoPabrikGulaLestari_4(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoPabrikGulaLestari_4_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoPabrikGulaLestari_4',
+                opacity: 1,
+                color: 'rgba(141,90,153,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoPabrikGulaLestari_4');
+        map.getPane('pane_Fastest_StasiunKertosonotoPabrikGulaLestari_4').style.zIndex = 404;
+        map.getPane('pane_Fastest_StasiunKertosonotoPabrikGulaLestari_4').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoPabrikGulaLestari_4 = new L.geoJson(json_Fastest_StasiunKertosonotoPabrikGulaLestari_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoPabrikGulaLestari_4',
+            layerName: 'layer_Fastest_StasiunKertosonotoPabrikGulaLestari_4',
+            pane: 'pane_Fastest_StasiunKertosonotoPabrikGulaLestari_4',
+            onEachFeature: pop_Fastest_StasiunKertosonotoPabrikGulaLestari_4,
+            style: style_Fastest_StasiunKertosonotoPabrikGulaLestari_4_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoPabrikGulaLestari_4);
+        map.addLayer(layer_Fastest_StasiunKertosonotoPabrikGulaLestari_4);
+        function pop_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5',
+                opacity: 1,
+                color: 'rgba(183,72,75,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5');
+        map.getPane('pane_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5').style.zIndex = 405;
+        map.getPane('pane_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5 = new L.geoJson(json_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5',
+            layerName: 'layer_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5',
+            pane: 'pane_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5',
+            onEachFeature: pop_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5,
+            style: style_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5);
+        map.addLayer(layer_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5);
+        function pop_Fastest_StasiunKertosonotoRSUDKertosono_6(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoRSUDKertosono_6_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoRSUDKertosono_6',
+                opacity: 1,
+                color: 'rgba(51,160,44,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoRSUDKertosono_6');
+        map.getPane('pane_Fastest_StasiunKertosonotoRSUDKertosono_6').style.zIndex = 406;
+        map.getPane('pane_Fastest_StasiunKertosonotoRSUDKertosono_6').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoRSUDKertosono_6 = new L.geoJson(json_Fastest_StasiunKertosonotoRSUDKertosono_6, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoRSUDKertosono_6',
+            layerName: 'layer_Fastest_StasiunKertosonotoRSUDKertosono_6',
+            pane: 'pane_Fastest_StasiunKertosonotoRSUDKertosono_6',
+            onEachFeature: pop_Fastest_StasiunKertosonotoRSUDKertosono_6,
+            style: style_Fastest_StasiunKertosonotoRSUDKertosono_6_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoRSUDKertosono_6);
+        map.addLayer(layer_Fastest_StasiunKertosonotoRSUDKertosono_6);
+        function pop_Fastest_StasiunKertosonotoPasarRakyatLengkong_7(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="DIST_KM" colspan="2"><strong>DIST_KM</strong><br />' + (feature.properties['DIST_KM'] !== null ? autolinker.link(String(feature.properties['DIST_KM']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="DURATION_H" colspan="2"><strong>DURATION_H</strong><br />' + (feature.properties['DURATION_H'] !== null ? autolinker.link(String(feature.properties['DURATION_H']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PROFILE" colspan="2"><strong>PROFILE</strong><br />' + (feature.properties['PROFILE'] !== null ? autolinker.link(String(feature.properties['PROFILE']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="PREF" colspan="2"><strong>PREF</strong><br />' + (feature.properties['PREF'] !== null ? autolinker.link(String(feature.properties['PREF']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="OPTIONS" colspan="2"><strong>OPTIONS</strong><br />' + (feature.properties['OPTIONS'] !== null ? autolinker.link(String(feature.properties['OPTIONS']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="FROM_ID" colspan="2"><strong>FROM_ID</strong><br />' + (feature.properties['FROM_ID'] !== null ? autolinker.link(String(feature.properties['FROM_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="TO_ID" colspan="2"><strong>TO_ID</strong><br />' + (feature.properties['TO_ID'] !== null ? autolinker.link(String(feature.properties['TO_ID']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Fastest_StasiunKertosonotoPasarRakyatLengkong_7_0() {
+            return {
+                pane: 'pane_Fastest_StasiunKertosonotoPasarRakyatLengkong_7',
+                opacity: 1,
+                color: 'rgba(166,206,227,1.0)',
+                dashArray: '',
+                lineCap: 'square',
+                lineJoin: 'bevel',
+                weight: 6.0,
+                fillOpacity: 0,
+                interactive: true,
+            }
+        }
+        map.createPane('pane_Fastest_StasiunKertosonotoPasarRakyatLengkong_7');
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarRakyatLengkong_7').style.zIndex = 407;
+        map.getPane('pane_Fastest_StasiunKertosonotoPasarRakyatLengkong_7').style['mix-blend-mode'] = 'normal';
+        var layer_Fastest_StasiunKertosonotoPasarRakyatLengkong_7 = new L.geoJson(json_Fastest_StasiunKertosonotoPasarRakyatLengkong_7, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Fastest_StasiunKertosonotoPasarRakyatLengkong_7',
+            layerName: 'layer_Fastest_StasiunKertosonotoPasarRakyatLengkong_7',
+            pane: 'pane_Fastest_StasiunKertosonotoPasarRakyatLengkong_7',
+            onEachFeature: pop_Fastest_StasiunKertosonotoPasarRakyatLengkong_7,
+            style: style_Fastest_StasiunKertosonotoPasarRakyatLengkong_7_0,
+        });
+        bounds_group.addLayer(layer_Fastest_StasiunKertosonotoPasarRakyatLengkong_7);
+        map.addLayer(layer_Fastest_StasiunKertosonotoPasarRakyatLengkong_7);
+        function pop_Lokasi_8(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td class="visible-with-data" id="Lokasi" colspan="2"><strong>Lokasi</strong><br />' + (feature.properties['Lokasi'] !== null ? autolinker.link(String(feature.properties['Lokasi']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="x" colspan="2"><strong>x</strong><br />' + (feature.properties['x'] !== null ? autolinker.link(String(feature.properties['x']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td class="visible-with-data" id="y" colspan="2"><strong>y</strong><br />' + (feature.properties['y'] !== null ? autolinker.link(String(feature.properties['y']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Lokasi_8_0(feature) {
+            switch(String(feature.properties['Lokasi'])) {
+                case 'Masjid Islamic Center Moeldoko Jombang':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(214,88,43,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Pabrik Gula Lestari':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(237,117,165,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Pasar Kedungringin':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(105,152,224,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Pasar Kertosono':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(44,232,219,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Pasar Rakyat Lengkong':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(67,18,200,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Pasar Sambikenceng':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(193,74,201,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'RSUD Kertosono':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 8.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(239,231,123,1.0)',
+                interactive: true,
+            }
+                    break;
+                case 'Stasiun Kertosono':
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 13.2,
+                opacity: 1,
+                color: 'rgba(184,8,8,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(184,8,8,1.0)',
+                interactive: true,
+            }
+                    break;
+                default:
+                    return {
+                pane: 'pane_Lokasi_8',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(129,220,153,1.0)',
+                interactive: true,
+            }
+                    break;
+            }
+        }
+        map.createPane('pane_Lokasi_8');
+        map.getPane('pane_Lokasi_8').style.zIndex = 408;
+        map.getPane('pane_Lokasi_8').style['mix-blend-mode'] = 'normal';
+        var layer_Lokasi_8 = new L.geoJson(json_Lokasi_8, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Lokasi_8',
+            layerName: 'layer_Lokasi_8',
+            pane: 'pane_Lokasi_8',
+            onEachFeature: pop_Lokasi_8,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_Lokasi_8_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_Lokasi_8);
+        map.addLayer(layer_Lokasi_8);
+        var overlaysTree = [
+            {label: 'Lokasi<br /><table><tr><td style="text-align: center;"><img src="legend/Lokasi_8_MasjidIslamicCenterMoeldokoJombang0.png" /></td><td>Masjid Islamic Center Moeldoko Jombang</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_PabrikGulaLestari1.png" /></td><td>Pabrik Gula Lestari</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_PasarKedungringin2.png" /></td><td>Pasar Kedungringin</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_PasarKertosono3.png" /></td><td>Pasar Kertosono</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_PasarRakyatLengkong4.png" /></td><td>Pasar Rakyat Lengkong</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_PasarSambikenceng5.png" /></td><td>Pasar Sambikenceng</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_RSUDKertosono6.png" /></td><td>RSUD Kertosono</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_StasiunKertosono7.png" /></td><td>Stasiun Kertosono</td></tr><tr><td style="text-align: center;"><img src="legend/Lokasi_8_8.png" /></td><td></td></tr></table>', layer: layer_Lokasi_8},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoPasarRakyatLengkong_7.png" /> Fastest_Stasiun Kertosono to Pasar Rakyat Lengkong', layer: layer_Fastest_StasiunKertosonotoPasarRakyatLengkong_7},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoRSUDKertosono_6.png" /> Fastest_Stasiun Kertosono to RSUD Kertosono', layer: layer_Fastest_StasiunKertosonotoRSUDKertosono_6},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5.png" /> Fastest_Stasiun Kertosono to Masjid Islamic Center Moeldoko Jombang', layer: layer_Fastest_StasiunKertosonotoMasjidIslamicCenterMoeldokoJombang_5},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoPabrikGulaLestari_4.png" /> Fastest_Stasiun Kertosono to Pabrik Gula Lestari', layer: layer_Fastest_StasiunKertosonotoPabrikGulaLestari_4},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoPasarKedungringin_3.png" /> Fastest_Stasiun Kertosono to Pasar Kedungringin', layer: layer_Fastest_StasiunKertosonotoPasarKedungringin_3},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoPasarKertosono_2.png" /> Fastest_Stasiun Kertosono to Pasar Kertosono', layer: layer_Fastest_StasiunKertosonotoPasarKertosono_2},
+            {label: '<img src="legend/Fastest_StasiunKertosonotoPasarSambikenceng_1.png" /> Fastest_Stasiun Kertosono to Pasar Sambikenceng', layer: layer_Fastest_StasiunKertosonotoPasarSambikenceng_1},
+            {label: "Google Earth", layer: layer_GoogleEarth_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        var i = 0;
+        layer_Lokasi_8.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Lokasi'] !== null?String('<div style="color: #ffffff; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Lokasi']).replace(/\\n/g, '<br>') + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_Lokasi_8'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        resetLabels([layer_Lokasi_8]);
+        map.on("zoomend", function(){
+            resetLabels([layer_Lokasi_8]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_Lokasi_8]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_Lokasi_8]);
+        });
+        </script>        
+    </body>
+</html>
